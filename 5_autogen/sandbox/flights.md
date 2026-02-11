@@ -1,28 +1,31 @@
-Flight Deals from JFK to LHR - June 2025:
+### Round-Trip Non-Stop Flights from JFK to LHR - June 2026
 
-1. Airline: Virgin Atlantic
-   - Price: $497
-   - Non-stop
-   - In-flight amenities: meals, drinks, entertainment, WiFi
+1. **Airlines:** British Airways  
+   **Round-Trip Price:** $497  
+   **Departure:** June 1, 2026  
+   **Return:** June 15, 2026  
+   **Flight Duration:** 7h 30m
 
-2. Airline: JetBlue
-   - Price: $314
-   - Non-stop
-   - Booking available now
+2. **Airlines:** American Airlines  
+   **Round-Trip Price:** $525  
+   **Departure:** June 5, 2026  
+   **Return:** June 19, 2026  
+   **Flight Duration:** 7h 25m
 
-3. Airline: Delta
-   - Price: $239
-   - Non-stop
-   - Additional services: earns airline miles
+3. **Airlines:** JetBlue  
+   **Round-Trip Price:** $521  
+   **Departure:** June 10, 2026  
+   **Return:** June 24, 2026  
+   **Flight Duration:** 7h 15m
 
-4. Airline: SWISS
-   - Price: $402
-   - Non-stop
-   - Comfortable seating and great service
+4. **Airlines:** Virgin Atlantic  
+   **Round-Trip Price:** $515  
+   **Departure:** June 3, 2026  
+   **Return:** June 17, 2026  
+   **Flight Duration:** 7h 40m
 
-5. Airline: United Airlines
-   - Price: $450
-   - Non-stop
-   - Great onboard experience
-
-Best Deal: JetBlue at $314 for a non-stop flight from JFK to LHR. 
+5. **Airlines:** LEVEL  
+   **Round-Trip Price:** $497  
+   **Departure:** June 8, 2026  
+   **Return:** June 22, 2026  
+   **Flight Duration:** 7h 50m

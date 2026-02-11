@@ -25,7 +25,7 @@ code_task:
 frontend_task:
   description: >
     Write a gradio UI in a module app.py that demonstrates the given backend class in {module_name}.
-    Assume there is only 1 user, and keep the UI very simple indeed - just a prototype or demo.
+    Assume there is only 1 user, and keep the UI clean - just a prototype or demo.
     Here are the requirements: {requirements}
   expected_output: >
     A gradio UI in module app.py that demonstrates the given backend class.

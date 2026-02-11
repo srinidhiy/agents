@@ -23,6 +23,12 @@ class State(TypedDict):
     feedback_on_work: Optional[str]
     success_criteria_met: bool
     user_input_needed: bool
+    # Shopping/gift mode fields
+    gift_mode: bool
+    budget_min: Optional[float]
+    budget_max: Optional[float]
+    recipient_interests: Optional[str]
+    occasion: Optional[str]
 
 
 class EvaluatorOutput(BaseModel):
@@ -47,7 +53,8 @@ class Sidekick:
 
     async def setup(self):
         self.tools, self.browser, self.playwright = await playwright_tools()
-        self.tools += await other_tools()
+        # Pass browser to other_tools so shopping tools can use it
+        self.tools += await other_tools(browser=self.browser)
         worker_llm = ChatOpenAI(model="gpt-4o-mini")
         self.worker_llm_with_tools = worker_llm.bind_tools(self.tools)
         evaluator_llm = ChatOpenAI(model="gpt-4o-mini")
@@ -61,6 +68,50 @@ class Sidekick:
     You have a tool to run python code, but note that you would need to include a print() statement if you wanted to receive output.
     The current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
+    === SHOPPING ASSISTANT CAPABILITIES ===
+    You are an expert online shopping assistant. You have specialized tools for shopping:
+    - search_products: Search for products on Amazon, Target, or Google Shopping
+    - get_product_details: Get detailed info (price, rating, reviews, availability) from a product URL
+    - add_to_cart: Add a product to the shopping cart (user will handle checkout)
+    - take_screenshot: Capture the current browser state
+    - compare_products: Compare multiple products side by side
+
+    When helping with shopping:
+    1. Search across multiple sites to find the best options
+    2. Compare prices and ratings before recommending
+    3. Present options clearly with prices and ratings
+    4. Always confirm before adding items to cart
+    5. Take screenshots to show the user what you found
+    """
+
+        # Add gift mode context if enabled
+        if state.get("gift_mode"):
+            gift_context = "\n    === GIFT FINDING MODE (ALREADY CONFIGURED) ===\n"
+            gift_context += "    IMPORTANT: The user has ALREADY provided the gift requirements below. DO NOT ask for budget, interests, or occasion - they are already specified!\n"
+            gift_context += "    Proceed directly to searching for products using these requirements:\n\n"
+            
+            if state.get("budget_min") is not None or state.get("budget_max") is not None:
+                budget_min = state.get("budget_min", 0)
+                budget_max = state.get("budget_max", "no limit")
+                gift_context += f"    - Budget: ${budget_min} to ${budget_max}\n"
+            
+            if state.get("recipient_interests"):
+                gift_context += f"    - Recipient's interests: {state['recipient_interests']}\n"
+            
+            if state.get("occasion"):
+                gift_context += f"    - Occasion: {state['occasion']}\n"
+            
+            gift_context += """
+    INSTRUCTIONS FOR GIFT MODE:
+    1. DO NOT ask for budget, interests, or occasion - use what's provided above
+    2. Immediately start searching for products matching the interests
+    3. Filter results to stay within the budget range
+    4. Present multiple gift options with prices and why they match
+    5. Consider the occasion when making recommendations
+    """
+            system_message += gift_context
+
+        system_message += f"""
     This is the success criteria:
     {state["success_criteria"]}
     You should reply either with a question for the user about this assignment, or with your final response.
@@ -121,7 +172,10 @@ class Sidekick:
 
         system_message = """You are an evaluator that determines if a task has been completed successfully by an Assistant.
     Assess the Assistant's last response based on the given criteria. Respond with your feedback, and with your decision on whether the success criteria has been met,
-    and whether more input is needed from the user."""
+    and whether more input is needed from the user.
+    
+    IMPORTANT: Be lenient and accept partial success. If the Assistant has made a reasonable attempt and provided useful information, mark it as successful.
+    Do NOT keep rejecting indefinitely - after the Assistant has tried, accept the result."""
 
         user_message = f"""You are evaluating a conversation between the User and Assistant. You decide what action to take based on the last response from the Assistant.
 
@@ -137,8 +191,14 @@ class Sidekick:
     Respond with your feedback, and decide if the success criteria is met by this response.
     Also, decide if more user input is required, either because the assistant has a question, needs clarification, or seems to be stuck and unable to answer without help.
 
+    The Assistant has access to tools for shopping (search_products, get_product_details, add_to_cart, take_screenshot).
     The Assistant has access to a tool to write files. If the Assistant says they have written a file, then you can assume they have done so.
-    Overall you should give the Assistant the benefit of the doubt if they say they've done something. But you should reject if you feel that more work should go into this.
+    
+    IMPORTANT GUIDELINES:
+    - Be LENIENT. If the Assistant found products and presented options, mark as SUCCESS even if not perfect.
+    - If the Assistant has tried to search/browse and provided any results, that counts as success.
+    - Do NOT keep rejecting - if the conversation shows multiple attempts, ACCEPT the current result.
+    - Only reject if the Assistant hasn't actually tried to do the task at all.
 
     """
         if state["feedback_on_work"]:
@@ -192,15 +252,41 @@ class Sidekick:
         # Compile the graph
         self.graph = graph_builder.compile(checkpointer=self.memory)
 
-    async def run_superstep(self, message, success_criteria, history):
-        config = {"configurable": {"thread_id": self.sidekick_id}}
+    async def run_superstep(
+        self,
+        message,
+        success_criteria,
+        history,
+        gift_mode: bool = False,
+        budget_min: Optional[float] = None,
+        budget_max: Optional[float] = None,
+        recipient_interests: Optional[str] = None,
+        occasion: Optional[str] = None,
+    ):
+        config = {
+            "configurable": {"thread_id": self.sidekick_id},
+            "recursion_limit": 50,  # Increased for shopping tasks that require multiple tool calls
+        }
+
+        # Set appropriate default success criteria
+        if not success_criteria:
+            if gift_mode:
+                success_criteria = "Find and present multiple gift options within the specified budget that match the recipient's interests. Do NOT ask for budget/interests/occasion - use what was already provided."
+            else:
+                success_criteria = "The answer should be clear and accurate"
 
         state = {
             "messages": message,
-            "success_criteria": success_criteria or "The answer should be clear and accurate",
+            "success_criteria": success_criteria,
             "feedback_on_work": None,
             "success_criteria_met": False,
             "user_input_needed": False,
+            # Gift mode fields
+            "gift_mode": gift_mode,
+            "budget_min": budget_min,
+            "budget_max": budget_max,
+            "recipient_interests": recipient_interests,
+            "occasion": occasion,
         }
         result = await self.graph.ainvoke(state, config=config)
         user = {"role": "user", "content": message}
